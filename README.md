@@ -1,3 +1,9 @@
+# 開前端
+在終端機輸入npx expo start
+
+# 開後端
+進入\backend後，輸入node index.js
+
 # Welcome to your Expo app 👋
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
