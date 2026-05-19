@@ -1,5 +1,6 @@
 # 開前端
 在終端機輸入npx expo start
+用網頁版本看npx expo start --web
 
 # 開後端
 進入\backend後，輸入node index.js
