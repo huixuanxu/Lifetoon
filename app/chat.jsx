@@ -1,25 +1,26 @@
-import React, { useState, useRef } from 'react';
-import { 
-  View, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  FlatList, 
-  KeyboardAvoidingView, 
-  Platform,
-  ImageBackground,
-  ActivityIndicator
-} from 'react-native';
 import { useRouter } from 'expo-router';
+import { useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  FlatList,
+  ImageBackground,
+  KeyboardAvoidingView,
+  Platform,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
+} from 'react-native';
 // 引入與結構完全分開管理的自訂樣式
-import { styles } from '../styles/chat.styles'; 
+import { styles } from '../styles/chat.styles';
 
 export default function ChatScreen() {
   const router = useRouter();
   const flatListRef = useRef(null);
   
   // 🎯 1. 定義你的電腦區域網路 IP 位址
-  const BACKEND_IP = "10.186.92.119";
+ // const BACKEND_IP = "10.186.92.119";
+  const BACKEND_IP = "localhost";
 
   // 預設的初始對話紀錄
   const [messages, setMessages] = useState([
