@@ -96,18 +96,49 @@ export default function GenerateComicAndFruitScreen() {
             <View style={{ backgroundColor: 'rgba(255, 255, 255, 0.85)', padding: 16, borderRadius: 16, marginBottom: 20, borderWidth: 1, borderColor: '#eee' }}>
               <TextInput
                 placeholder="輸入一段今天發生的熱血或搞笑故事... (例如：今天排球比賽打出了超帥的左手扣殺！)"
+                placeholderTextColor="#888" // 🎯 關鍵核心：強制指定預設詞顏色為灰色
                 value={prompt}
                 onChangeText={setPrompt}
                 multiline
                 numberOfLines={4}
-                style={{ backgroundColor: '#fff', padding: 12, borderRadius: 12, textAlignVertical: 'top', fontSize: 15, marginBottom: 16, height: 90, borderWidth: 1, borderColor: '#ddd', color: '#333' }}
+                style={{ color: '#111', backgroundColor: '#fff', padding: 12, borderRadius: 12, textAlignVertical: 'top', fontSize: 15, marginBottom: 16, height: 90, borderWidth: 1, borderColor: '#ddd', color: '#333' }}
               />
 
               {/* 相機上傳按鈕 */}
-              <label style={{ display: 'block', padding: 12, backgroundColor: '#f0f4f8', borderRadius: 12, textAlign: 'center', cursor: 'pointer', marginBottom: 12, border: '1px dashed #99aab8' }}>
+              {/* ✅ 換成符合手機原生規格的按鈕 */}
+              <TouchableOpacity 
+                onPress={async () => {
+                  // 💡 提示：如果是在手機端，未來推薦用 expo-image-picker
+                  // 現階段我們為了讓你的選取邏輯能跑，在網頁可用原生，但手機上要做防呆
+                  if (typeof window !== 'undefined' && document) {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'image/*';
+                    input.onchange = (e) => handlePickImage(e);
+                    input.click();
+                  } else {
+                    alert("手機端請串接 expo-image-picker 來開啟相簿喔！");
+                  }
+                }}
+                style={{ 
+                  padding: 12, 
+                  backgroundColor: '#f0f4f8', 
+                  borderRadius: 12, 
+                  alignItems: 'center', 
+                  marginBottom: 12, 
+                  borderWidth: 1, 
+                  borderColor: '#99aab8', 
+                  borderStyle: 'dashed' 
+                }}
+              >
+                <Text style={{ color: '#455a64', fontWeight: 'bold', fontSize: 14 }}>📷 上傳日常照片 (定義漫畫主角)</Text>
+              </TouchableOpacity>
+
+              {/* <label style={{ display: 'block', padding: 12, backgroundColor: '#f0f4f8', borderRadius: 12, textAlign: 'center', cursor: 'pointer', marginBottom: 12, border: '1px dashed #99aab8' }}>
                 <Text style={{ color: '#455a64', fontWeight: 'bold', fontSize: 14 }}>📷 上傳日常照片 (定義漫畫主角)</Text>
                 <input type="file" accept="image/*" onChange={handlePickImage} style={{ display: 'none' }} />
-              </label>
+              </label> */}
+
               {imageFile && <Text style={{ textAlign: 'center', color: '#2e7d32', fontSize: 13, marginBottom: 10 }}>✨ 已選取: {imageFile.name}</Text>}
 
               {/* 發送煉金按鈕（套用與聊天室右下角發送鍵一致的風格） */}

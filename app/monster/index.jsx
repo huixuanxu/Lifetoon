@@ -26,6 +26,7 @@ const btnSkillImg = require("../../assets/images/btn_skill.png");   // 技能
 const FRUIT_IMAGES = {
   apple: require("../../assets/images/fruit_apple.png"),
   watermelon: require("../../assets/images/fruit_watermelon.png"),
+  banana: require("../../assets/images/fruit_banana.png"),
 };
 
 
@@ -55,12 +56,20 @@ export default function MonsterScreen() {
         effect_text: '入口微酸，如心跳般緊張；甜味蔓延，化作勇氣的溫暖光芒。' 
     },
     { 
-        id: 'f2',
+         id: 'f2',
          name: '暖心西瓜', 
          element: '水', 
          bonus_exp: 30, 
          iconKey: 'watermelon', // 👈 改用字串來記錄
          effect_text: '清爽香甜，吃完後感到身心無比舒暢，暑氣全消！' 
+    },
+    { 
+         id: 'f3',
+         name: '閃電香蕉', 
+         element: '雷', 
+         bonus_exp: 20, 
+         iconKey: 'banana', // 👈 改用字串來記錄
+         effect_text: '口感綿密，吃完後渾身充滿電流，精神百倍！' 
     }
   ]);
 
@@ -211,11 +220,14 @@ export default function MonsterScreen() {
           flexDirection: 'row', 
           justifyContent: 'space-around', 
           backgroundColor: '#FFFEEA', 
-          borderTopWidth: 3, 
+          borderWidth: 3, 
           borderColor: '#111', 
-          paddingVertical: 14,
+          paddingVertical: 20,
           borderTopLeftRadius: 24,
-          borderTopRightRadius: 24
+          borderTopRightRadius: 24,
+          paddingHorizontal: 20,
+          paddingTop: 16,
+          paddingBottom: 40,
         }}>
              {/* 1. 願望按鈕 */}
             <TouchableOpacity style={{ alignItems: 'center' }} activeOpacity={0.7}>
@@ -287,7 +299,7 @@ export default function MonsterScreen() {
                     fontSize: 16, 
                     fontWeight: 'bold', 
                     color: '#999' 
-                    }}>關閉 ✕</Text>
+                    }}>關閉  ✕</Text>
                 </TouchableOpacity>
 
               </View>
