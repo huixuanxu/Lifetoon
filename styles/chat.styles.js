@@ -36,6 +36,34 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#000',
   },
+
+  // 🎯 客製化黃色動漫風生圖按鈕（容器樣式）
+  genButtonContainer: {
+    height: 42,                 // 固定高度以對齊左側日期
+    paddingHorizontal: 20,      // 左右留白，營造飽滿的膠囊形狀
+    borderRadius: 20,           // 高度的一半，達成完美圓弧
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F7C12F', // 完美還原圖片中的亮黃色
+    borderWidth: 2.5,           // 與輸入框、泡泡一致的漫畫風粗黑框
+    borderColor: '#000',        // 純黑邊線
+    
+    // ✨ 二次元必備硬邊陰影 (無擴散、高不透明度)
+    shadowColor: '#000',
+    shadowOffset: { width: 3, height: 3 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 4,               // Android 硬邊陰影相容
+  },
+
+  // 生圖按鈕文字樣式
+  genButtonText: {
+    color: '#000',              // 純黑字
+    fontSize: 18,               // 精緻適中的大小
+    fontWeight: 'bold',          // 加粗提升手繪感
+    letterSpacing: 0.5,         // 微調字距
+  },
+
   // 聊天訊息滾動區域
   chatList: {
     flex: 1,
@@ -105,24 +133,33 @@ export const styles = StyleSheet.create({
     backgroundColor: '#EAEAEA',
     borderColor: '#666',
   },
-  // 底部輸入框區塊
+
+  // ==========================================
+  // 🛠️ 核心修正：優化底部輸入框區塊，緊貼鍵盤
+  // ==========================================
   bottomContainer: {
-    backgroundColor: 'transparent',
+    backgroundColor: 'transparent', // 透明以看清方格背景
     paddingHorizontal: 16,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 16, // 留出 iOS 底部安全線高度
-    paddingTop: 10,
+   
+    // 🎯 修正：大幅縮減底部間距（原本 iOS 是 34，改為 8，Android 改為 6）
+    // 這樣一來，鍵盤彈起時，輸入框就不會再被硬生生往上推開一段奇怪的肥胖空隙！
+    paddingBottom: Platform.OS === 'ios' ? 34 : 30, 
+    
+    // 🎯 修正：縮小頂部內距，讓聊天列表與輸入框更密合精緻
+    paddingTop: 5, 
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  // 漫畫感輸入框
+  
+  // 漫畫感輸入框（可根據上一題自行決定改透明，這裡維持原本乾淨白底）
   inputBox: {
     flex: 1,
     backgroundColor: '#FFF',
     borderWidth: 2.5,
     borderColor: '#000',
-    borderRadius: 24,
+    borderRadius: 30,
     paddingHorizontal: 18,
     paddingVertical: 10,
     fontSize: 16,

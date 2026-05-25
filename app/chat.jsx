@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { 
   View, 
   Text, 
@@ -8,7 +8,8 @@ import {
   KeyboardAvoidingView, 
   Platform,
   ImageBackground,
-  ActivityIndicator
+  ActivityIndicator,
+  Alert
 } from 'react-native';
 import { useRouter } from 'expo-router';
 // 引入與結構完全分開管理的自訂樣式
@@ -19,7 +20,7 @@ export default function ChatScreen() {
   const flatListRef = useRef(null);
   
   // 🎯 1. 定義你的電腦區域網路 IP 位址
-  const BACKEND_IP = "10.186.92.119";
+  const BACKEND_IP = "10.48.163.119";
 
   // 預設的初始對話紀錄
   const [messages, setMessages] = useState([
@@ -28,14 +29,42 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false); // 控制 AI 思考中的載入狀態
 
+  // 🎯 2. 動態計算目前的日期與星期（格式：8月29日(三)）
+  const currentDateText = useMemo(() => {
+    const today = new Date();
+    const month = today.getMonth() + 1; // 月份從 0 開始算，所以要 +1
+    const date = today.getDate();
+    const days = ['日', '一', '二', '三', '四', '五', '六'];
+    const dayOfWeek = days[today.getDay()];
+    return `${month}月${date}日(${dayOfWeek})`;
+  }, []);
+
+  // 🎯 3. 處理點擊「🎨 生成漫畫」按鈕的邏輯
+  const handleGenerateImage = () => {
+    const userConversations = messages
+      .filter(m => m.sender === 'user')
+      .map(m => m.text)
+      .join(', ');
+
+    if (!userConversations) {
+      Alert.alert("提示", "先跟 S 聊聊天吧！有了今天的心情對話，才能幫你畫成專屬漫畫喔。");
+      return;
+    }
+
+    console.log("🎬 即將打包傳送至生圖通道的內容:", userConversations);
+
+    router.push({
+      pathname: '/generate/loading',
+      params: { prompt: userConversations }
+    });
+  };
+
   // 處理訊息發送與非同步核心邏輯
   const handleSend = async () => {
-    // 【防呆機制】如果輸入框為空，或者 AI 正在載入中，直接攔拦截不發送
     if (!inputText.trim() || isAiLoading) return;
 
     const userRawText = inputText.trim();
 
-    // 1. 先將使用者的訊息渲染到畫面中
     const userMessage = {
       id: Date.now().toString(),
       sender: 'user',
@@ -47,13 +76,12 @@ export default function ChatScreen() {
     setInputText('');
     setIsAiLoading(true); // 鎖定狀態：打字思考中
     
-    // 讓對話列表自動平滑滾動到最底部
+    // 發送後立即使對話列表自動平滑滾動到最底部
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
     }, 100);
 
     try {
-      // 🎯 2. 發送網路請求至你自己的安全後端 API（不需要再帶上金鑰與人設了）
       const response = await fetch(
         `http://${BACKEND_IP}:5000/api/chat`,
         {
@@ -62,12 +90,11 @@ export default function ChatScreen() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            message: userRawText // 傳送使用者輸入的文字給後端
+            message: userRawText 
           })
         }
       );
 
-      // 3. 攔截非 200 的異常狀態碼
       if (!response.ok) {
         let debugHint = `後端連線異常 (狀態碼: ${response.status})`;
         if (response.status === 429) {
@@ -80,14 +107,11 @@ export default function ChatScreen() {
         throw new Error(debugHint);
       }
 
-      // 4. 成功收到後端回應，解析資料
       const data = await response.json();
       
-      // 🎯 【關鍵修正】直接讀取後端整理、簡化後的 data.reply 欄位
       if (data && data.reply) {
         const aiReplyText = data.reply;
         
-        // 將 AI 的正確回應塞入對話
         setMessages(prev => [...prev, {
           id: (Date.now() + 1).toString(),
           sender: 'ai',
@@ -108,7 +132,6 @@ export default function ChatScreen() {
         isError: true
       }]);
     } finally {
-      // 無論成功或失敗，都關閉載入圈圈，並滾動到最低端
       setIsAiLoading(false);
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
@@ -151,48 +174,60 @@ export default function ChatScreen() {
       style={styles.backgroundImage}
       resizeMode="cover"
     >
-      <View style={styles.container}>
-        
-        {/* 頂部導覽列 */}
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
-              <Text style={styles.headerIconText}>〈</Text>
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>8月29日(三)</Text>
-          </View>
-          <TouchableOpacity activeOpacity={0.7}>
-            <Text style={styles.headerIconText}>⋮</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* 聊天訊息列表 */}
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          renderItem={renderMessageItem}
-          keyExtractor={item => item.id}
-          style={styles.chatList}
-          contentContainerStyle={styles.chatContainer}
-          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+      {/* 🎯 核心優化：重新校正 KeyboardAvoidingView 參數
+        - 雙平台皆使用 'padding' 行為，讓整體結構在鍵盤彈起時向上推擠
+        - 針對 iOS 與 Android 給予不同的高度補償量 (Offset)，徹底拉開輸入框與鍵盤的距離
+      */}
+      <KeyboardAvoidingView
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 50 : 15} 
+        style={{ flex: 1 }}
+      >
+        {/* 主內容容器 */}
+        <View style={[styles.container, { flex: 1 }]}>
           
-          ListFooterComponent={isAiLoading ? (
-            <View style={[styles.messageRow, styles.aiRow]}>
-              <View style={styles.avatarCircle}>
-                <Text style={styles.avatarText}>S</Text>
-              </View>
-              <View style={[styles.bubble, styles.aiBubble, styles.loadingBubble]}>
-                <ActivityIndicator size="small" color="#000" />
-              </View>
+          {/* 頂部導覽列 */}
+          <View style={styles.header}>
+            <View style={styles.headerLeft}>
+              <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
+                <Text style={styles.headerIconText}>〈</Text>
+              </TouchableOpacity>
+              <Text style={styles.headerTitle}>{currentDateText}</Text>
             </View>
-          ) : null}
-        />
+            
+            <TouchableOpacity 
+              onPress={handleGenerateImage} 
+              activeOpacity={0.8}
+              style={styles.genButtonContainer} 
+            >
+              <Text style={styles.genButtonText}>生成漫畫</Text>
+            </TouchableOpacity>
+          </View>
 
-        {/* 虛擬鍵盤抗遮擋 */}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 10}
-        >
+          {/* 聊天訊息列表：維持 flex: 1，並確保鍵盤彈起時 FlatList 能自動縮小尺寸 */}
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            renderItem={renderMessageItem}
+            keyExtractor={item => item.id}
+            style={[styles.chatList, { flex: 1 }]} 
+            contentContainerStyle={styles.chatContainer}
+            // 當鍵盤彈起、對話視窗變動時，再度強制滾動到底部，保證隨時看得到最新對話
+            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+            
+            ListFooterComponent={isAiLoading ? (
+              <View style={[styles.messageRow, styles.aiRow]}>
+                <View style={styles.avatarCircle}>
+                  <Text style={styles.avatarText}>S</Text>
+                </View>
+                <View style={[styles.bubble, styles.aiBubble, styles.loadingBubble]}>
+                  <ActivityIndicator size="small" color="#000" />
+                </View>
+              </View>
+            ) : null}
+          />
+
+          {/* 底部的輸入區塊 */}
           <View style={styles.bottomContainer}>
             <View style={styles.inputRow}>
               <TextInput
@@ -203,6 +238,7 @@ export default function ChatScreen() {
                 onChangeText={setInputText}
                 multiline
                 editable={!isAiLoading} 
+                scrollEnabled={false} 
               />
               <TouchableOpacity 
                 style={[styles.sendButton, isAiLoading && styles.disabledButton]} 
@@ -214,9 +250,9 @@ export default function ChatScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoidingView>
 
-      </View>
+        </View>
+      </KeyboardAvoidingView>
     </ImageBackground>
   );
 }
