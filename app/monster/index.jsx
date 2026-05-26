@@ -1,16 +1,17 @@
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-    Image,
-    ImageBackground,
-    Modal,
-    ScrollView,
-    Text,
-    TouchableOpacity,
-    View
+  FlatList,
+  Image,
+  ImageBackground,
+  Modal,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 // 🎯 共用你最漂亮的聊天室自訂樣式包
+import { useLocalSearchParams } from 'expo-router'; // 🎯 引入接收參數的 Hook
 import { styles } from '../../styles/chat.styles';
 
 const normalmonsterImg = require("../../assets/images/monster.png"); 
@@ -24,10 +25,34 @@ const btnSkillImg = require("../../assets/images/btn_skill.png");   // 技能
 
 // 🎯 在元件外面或最上方，先建立好乾淨的圖片對照表
 const FRUIT_IMAGES = {
-  apple: require("../../assets/images/fruit_apple.png"),
-  watermelon: require("../../assets/images/fruit_watermelon.png"),
-  banana: require("../../assets/images/fruit_banana.png"),
+  apple: require('../../assets/images/fruit_apple.png'),
+  watermelon: require('../../assets/images/fruit_watermelon.png'),
+  banana: require('../../assets/images/fruit_banana.png'),
+  grape: require('../../assets/images/fruit_grape.png'),
+  strawberry: require('../../assets/images/fruit_strawberry.png'),
+  passion_fruit: require('@/assets/images/fruit_passion_fruit.png'),
+  dragon_fruit: require('@/assets/images/fruit_dragon_fruit.png'),
+  love_fruit: require('@/assets/images/fruit_love_fruit.png'),
+  cherry: require('@/assets/images/fruit_cherry.png'),
+  melon: require('@/assets/images/fruit_melon.png'),
+  mango: require('@/assets/images/fruit_mango.png'),
+
 };
+
+// 🎯 【關鍵：放在元件外面！】全域背包儲存庫，不論頁面怎麼洗，這裡的記憶都不會掉！
+if (typeof global.globalInventory === 'undefined') {
+  global.globalInventory = [
+    { 
+      id: 'f1',
+      name: '微光蘋果', 
+      element: '光', 
+      bonus_exp: 25, 
+      iconKey: 'apple', 
+      effect_text: '入口微酸，如心跳般緊張；甜味蔓延，化作勇氣的溫暖光芒。',
+      quantity: 1
+    }
+  ];
+}
 
 
 export default function MonsterScreen() {
@@ -45,64 +70,116 @@ export default function MonsterScreen() {
   // 🎯 【全新加入】：記錄目前正在餵食哪一顆水果。預設是 null (代表沒有在餵食)
   const [currentFeedingFruit, setCurrentFeedingFruit] = useState(null);
 
+  // 🎯 拿到聊天頁面快遞過來的水果包裹
+  const params = useLocalSearchParams();
+
   // 🎒 模擬背包中的果實數據（通常這會從後端或全域狀態撈取）
-  const [inventory, setInventory] = useState([
-    { 
-        id: 'f1',
-        name: '微光蘋果', 
-        element: '光', 
-        bonus_exp: 25, 
-        iconKey: 'apple', // 👈 改用字串來記錄
-        effect_text: '入口微酸，如心跳般緊張；甜味蔓延，化作勇氣的溫暖光芒。' 
-    },
-    { 
-         id: 'f2',
-         name: '暖心西瓜', 
-         element: '水', 
-         bonus_exp: 30, 
-         iconKey: 'watermelon', // 👈 改用字串來記錄
-         effect_text: '清爽香甜，吃完後感到身心無比舒暢，暑氣全消！' 
-    },
-    { 
-         id: 'f3',
-         name: '閃電香蕉', 
-         element: '雷', 
-         bonus_exp: 20, 
-         iconKey: 'banana', // 👈 改用字串來記錄
-         effect_text: '口感綿密，吃完後渾身充滿電流，精神百倍！' 
+// ❌ 舊寫法：const [inventory, setInventory] = useState([ ... ]);
+// ✅ 新寫法：直接綁定全域記憶庫
+const [inventory, setInventory] = useState(global.globalInventory);
+const [isBagOpen, setIsBagOpen] = useState(false);                  // 👈 確保這行在這裡！
+
+
+
+// 🔍 【終極偵探線索】：每次包包一變動，就自動在黑色終端機印出來，讓我們看看到底有沒有塞成功！
+  useEffect(() => {
+    console.log("=== 🎒 當前包包記憶體實時內容 ===", inventory);
+  }, [inventory]);
+
+
+// 🎯 3. 核心接收器（終極除錯變數安全版）
+  useEffect(() => {
+    console.log("=== 📦 收到聊天室傳來的快遞參數 ===", {
+      key: params.newFruitKey,
+      name: params.newFruitName
+    });
+
+    if (params.newFruitKey && params.newFruitName) {
+      try {
+        // 🏆 確保 currentInv 宣告在最頂層，絕對不會 undefined！
+        let currentInv = [];
+        
+        // 如果全域背包本來有東西，就搬過來；沒有的話就用空陣列
+        if (global.globalInventory && Array.isArray(global.globalInventory)) {
+          currentInv = [...global.globalInventory];
+        }
+        
+        // 🕵️‍♂️ 檢查包包裡是否已有同款水果
+        const existsIndex = currentInv.findIndex(item => item.iconKey === params.newFruitKey);
+        
+        if (existsIndex !== -1) {
+          // 同款存在，數量 + 1
+          currentInv[existsIndex] = {
+            ...currentInv[existsIndex],
+            quantity: (currentInv[existsIndex].quantity || 1) + 1
+          };
+          console.log(`✨ 偵測到同款 [${params.newFruitName}]，數量加 1！`);
+        } else {
+          // 全新水果，開新格子
+          const spawnedFruit = {
+            id: `fruit_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            name: params.newFruitName,
+            iconKey: params.newFruitKey,
+            bonus_exp: parseInt(params.newFruitExp, 10) || 20,
+            effect_text: params.newFruitText || '',
+            element: '心', 
+            quantity: 1
+          };
+          currentInv.push(spawnedFruit);
+          console.log(`✨ 成功將全新水果 [${params.newFruitName}] 塞入新格子！`);
+        }
+
+        // 🔄 寫回全域記憶庫與 React 畫面狀態
+        global.globalInventory = currentInv;
+        setInventory(currentInv);
+        
+        // 🚀 撕掉網址簽收單，防止重複執行
+        router.setParams({
+          newFruitKey: undefined,
+          newFruitName: undefined,
+          newFruitExp: undefined,
+          newFruitText: undefined,
+        });
+
+        // 自動打開小背包看成果
+        setIsBagOpen(true); 
+
+      } catch (err) {
+        console.error("🚨 塞入背包時發生內部錯誤：", err);
+      }
     }
-  ]);
+  }, [params.newFruitKey, params.newFruitName]); // 雙重監聽，只要名字或 Key 一到立刻抓人！
 
-  const [isBagOpen, setIsBagOpen] = useState(false); // 控制點心背包彈窗
 
-  // 🍖 核心餵食邏輯
+  // 🍖 核心餵食邏輯（同樣要同步扣除全域記憶庫的數量）
   const handleFeedFruit = (fruit) => {
-    // 1. 增加魔獸的心心（經驗值）
     setHearts(prev => prev + fruit.bonus_exp);
 
-    // 2. 餵完後將該果實從背包扣除
-    setInventory(prev => prev.filter(item => item.id !== fruit.id));
+    // 🎒 扣除全域背包與狀態數量
+    global.globalInventory = global.globalInventory.map(item => {
+      if (item.iconKey === fruit.iconKey) {
+        return { ...item, quantity: (item.quantity || 1) - 1 };
+      }
+      return item;
+    }).filter(item => item.quantity > 0);
+
+    // 🔄 同步更新畫面
+    setInventory(global.globalInventory);
     
-    // 3. 讓魔獸說出專屬的特效台詞（100% 呼應你的卡片與設計圖！）
+    // 魔獸台詞與開心特效
     setMonsterDialogue(`吃完${fruit.name}，${fruit.effect_text}`);
-    
-    // 🎯 記錄目前正在吃哪顆水果（這會讓水果圖出現在怪獸旁邊）
     setCurrentFeedingFruit(fruit.iconKey);
-    // 🎯 【關鍵邏輯】：吃完立刻變成開心的樣子！
     setMonsterMood('happy');
 
-    //【資深提示】：建立一個「開心冷卻時間」
-    // 我們不能讓它永遠開心下去，不然遊戲太單調。
-    // 設定 4 秒後（4000 毫秒），它會自動變回普通的樣子。
     setTimeout(() => {
-      setMonsterMood('normal'); // 自動切換回來
-      setCurrentFeedingFruit(null); // 🎯 恢復成 null，水果就會隱形
+      setMonsterMood('normal'); 
+      setCurrentFeedingFruit(null); 
     }, 4000);
 
-    
-    // 4. 關閉背包
     setIsBagOpen(false);
   };
+
+
 
   return (
     <ImageBackground 
@@ -267,8 +344,162 @@ export default function MonsterScreen() {
 
         </View>
 
-        {/* 🎒 點心餵食彈窗 (Modal Bag) */}
+        {/* 🎒 點心餵食彈窗 (升級：高抽屜上滑滾動 + 數量堆疊版) */}
         <Modal visible={isBagOpen} transparent animationType="slide">
+          {/* 點擊背景可以關閉包包 */}
+          <TouchableOpacity 
+            activeOpacity={1} 
+            onPress={() => setIsBagOpen(false)}
+            style={{ 
+              flex: 1, 
+              justifyContent: 'flex-end', // 讓抽屜從底部探頭
+              backgroundColor: 'rgba(0,0,0,0.5)' 
+            }}
+          >
+            {/* 💼 點擊大抽屜本體時，阻止關閉事件 */}
+            <TouchableOpacity 
+              activeOpacity={1}
+              style={{ 
+                backgroundColor: '#fff', 
+                borderTopLeftRadius: 28, 
+                borderTopRightRadius: 28, 
+                paddingTop: 16,
+                paddingHorizontal: 24,
+                paddingBottom: 40,
+                height: '75%',            // 🎯 關鍵：拉高到螢幕的 75%，一開就有超大空間，可以直接往上滑！
+                borderWidth: 3, 
+                borderColor: '#000',      // 漫畫粗黑邊
+              }}
+            >
+              {/* 抽屜頂部的小橫條（手遊經典裝飾，暗示可以下滑或這是一個抽屜） */}
+              <View style={{
+                width: 50,
+                height: 6,
+                backgroundColor: '#DDD',
+                borderRadius: 3,
+                alignSelf: 'center',
+                marginBottom: 20
+              }} />
+                  
+              {/* 頁首標題區 */}
+              <View style={{ 
+                flexDirection: 'row', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                marginBottom: 20, 
+              }}>
+                <Text style={{ fontSize: 20, fontWeight: '900', color: '#000' }}>
+                  故事凝結的果實背包
+                </Text>
+                
+                <TouchableOpacity 
+                  onPress={() => setIsBagOpen(false)}
+                  style={{
+                    //backgroundColor: '#EEE',
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 12,
+                    //borderWidth: 2,
+                    borderColor: '#000'
+                  }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '900', color: '#555' }}>關閉 ✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* 水果網格清單 */}
+              {inventory.length === 0 ? (
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                  <Text style={{ textAlign: 'center', color: '#999', fontSize: 15, lineHeight: 24 }}>
+                    背包空空的...{"\n"}快去故事煉金廚房提煉一些果實吧！
+                  </Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={inventory}
+                  keyExtractor={(item) => item.id}
+                  numColumns={3} // 🎯 一行改成 3 個格子，視覺更像手遊背包，找東西超直覺！
+                  showsVerticalScrollIndicator={true} // 開啟右側滑軌
+                  style={{ flex: 1 }} // 撐滿抽屜剩餘空間，解鎖無限上滑滾動
+                  contentContainerStyle={{ paddingBottom: 20, gap: 14 }}
+                  columnWrapperStyle={{ gap: 12 }} // 格子左右間距
+                  renderItem={({ item: fruit }) => (
+                    <TouchableOpacity 
+                      activeOpacity={0.8}
+                      onPress={() => handleFeedFruit(fruit)}
+                      style={{ 
+                        flex: 1, // 均分寬度
+                        height: 120,
+                        backgroundColor: '#FFFEEA', 
+                        borderWidth: 2, 
+                        borderColor: '#000', 
+                        borderRadius: 16, 
+                        padding: 8, 
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        position: 'relative',
+                        // 漫畫風輕微黑陰影
+                        shadowColor: '#000',
+                        shadowOffset: { width: 4, height: 4 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 0,
+                      }}
+                    >
+                      {/* 水果實體圖片 */}
+                      <Image 
+                        source={FRUIT_IMAGES[fruit.iconKey]} 
+                        style={{ width: 50, height: 50, resizeMode: 'contain' }} 
+                      />
+                      
+                      {/* 水果名字 */}
+                      <Text style={{ fontSize: 12, fontWeight: '900', color: '#000', marginTop: 4 }} numberOfLines={1}>
+                        {fruit.name}
+                      </Text>
+
+                      {/* 🔥 亮點：右下角手遊風【數量顯示標籤】 (例如: x3) */}
+                      <View style={{ 
+                        position: 'absolute', 
+                        right: 6, 
+                        bottom: 6, 
+                        backgroundColor: '#FFCC22', // 亮黃色底
+                        borderWidth: 0, 
+                        borderColor: '#000', 
+                        borderRadius: 10, 
+                        paddingHorizontal: 5,
+                        paddingVertical: 1,
+                      }}>
+                        <Text style={{ fontSize: 12, fontWeight: '900', color: '#000' }}>
+                          x{fruit.quantity || 1}
+                        </Text>
+                      </View>
+
+                      {/* 左上角經驗值小緞帶 */}
+                      <View style={{ 
+                        position: 'absolute', 
+                        left: 6, 
+                        top: 6, 
+                        backgroundColor: '#FF8844', 
+                        borderWidth: 0, 
+                        borderColor: '#000', 
+                        borderRadius: 5, 
+                        paddingHorizontal: 3 
+                      }}>
+                        <Text style={{ fontSize: 12, fontWeight: '900', color: '#fff' }}>
+                          +{fruit.bonus_exp}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                />
+              )}
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
+
+
+
+        {/* 🎒 點心餵食彈窗 (Modal Bag) */}
+        {/* <Modal visible={isBagOpen} transparent animationType="slide">
           <View style={{ 
             flex: 1, 
             justifyContent: 'flex-end', 
@@ -325,6 +556,7 @@ export default function MonsterScreen() {
                         alignItems: 'center',
                         justifyContent: 'center', // 上下置中
                      }}
+                        
                     >
                       <Image 
                         source={ FRUIT_IMAGES[fruit.iconKey]} // 👈 用剛才建立的字典，透過字串金鑰撈出真正的 require
@@ -338,7 +570,7 @@ export default function MonsterScreen() {
               )}
             </View>
           </View>
-        </Modal>
+        </Modal> */}
 
       </View>
     </ImageBackground>
