@@ -529,9 +529,9 @@ export default function ChatScreen() {
                 style={{
                   flex: 1,
                   backgroundColor: '#666', // 灰色
-                  borderWidth: 3,
+                  borderWidth: 2,
                   borderColor: '#000',
-                  borderRadius: 10,
+                  borderRadius: 30,
                   paddingVertical: 12,
                   alignItems: 'center',
                 }}
