@@ -5,6 +5,14 @@
 # 開後端
 進入\backend後，輸入node index.js
 
+#新裝置開啟專案
+powershell輸入(如果沒辦法安裝npm
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+npm install
+
+npm install multer
+
 # Welcome to your Expo app 👋
 
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
