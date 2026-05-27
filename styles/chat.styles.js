@@ -36,6 +36,34 @@ export const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#000',
   },
+
+  // 🎯 客製化黃色動漫風生圖按鈕（容器樣式）
+  genButtonContainer: {
+    height: 42,                 // 固定高度以對齊左側日期
+    paddingHorizontal: 20,      // 左右留白，營造飽滿的膠囊形狀
+    borderRadius: 20,           // 高度的一半，達成完美圓弧
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F7C12F', // 完美還原圖片中的亮黃色
+    borderWidth: 2.5,           // 與輸入框、泡泡一致的漫畫風粗黑框
+    borderColor: '#000',        // 純黑邊線
+    
+    // ✨ 二次元必備硬邊陰影 (無擴散、高不透明度)
+    shadowColor: '#000',
+    shadowOffset: { width: 3, height: 3 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 4,               // Android 硬邊陰影相容
+  },
+
+  // 生圖按鈕文字樣式
+  genButtonText: {
+    color: '#000',              // 純黑字
+    fontSize: 18,               // 精緻適中的大小
+    fontWeight: 'bold',          // 加粗提升手繪感
+    letterSpacing: 0.5,         // 微調字距
+  },
+
   // 聊天訊息滾動區域
   chatList: {
     flex: 1,
