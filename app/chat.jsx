@@ -19,7 +19,8 @@ export default function ChatScreen() {
   const router = useRouter();
   const flatListRef = useRef(null);
   
-  // 🎯 1. 定義你的電腦區域網路 IP 位址
+  // 🎯 【Demo 命門提醒】：後天去到評審展示會場，如果連了會場的 Wi-Fi，
+  // 請務必把這裡的 IP 改成妳筆電當下分到的最新 IPv4 位址！
   const BACKEND_IP = "10.48.163.119";
 
   // 預設的初始對話紀錄
@@ -29,22 +30,22 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false); // 控制 AI 思考中的載入狀態
 
-  // 🎯 2. 動態計算目前的日期與星期（格式：8月29日(三)）
+  // 動態計算目前的日期與星期
   const currentDateText = useMemo(() => {
     const today = new Date();
-    const month = today.getMonth() + 1; // 月份從 0 開始算，所以要 +1
+    const month = today.getMonth() + 1; 
     const date = today.getDate();
     const days = ['日', '一', '二', '三', '四', '五', '六'];
     const dayOfWeek = days[today.getDay()];
     return `${month}月${date}日(${dayOfWeek})`;
   }, []);
 
-  // 🎯 3. 處理點擊「🎨 生成漫畫」按鈕的邏輯
+  // 🎯 處理點擊「🎨 生成漫畫」按鈕的邏輯
   const handleGenerateImage = () => {
     const userConversations = messages
       .filter(m => m.sender === 'user')
       .map(m => m.text)
-      .join(', ');
+      .join('，'); // 💡 優化：改用中文全形逗號拼接，完美契合後端智慧切分演算法！
 
     if (!userConversations) {
       Alert.alert("提示", "先跟 S 聊聊天吧！有了今天的心情對話，才能幫你畫成專屬漫畫喔。");
@@ -74,14 +75,23 @@ export default function ChatScreen() {
 
     setMessages(prev => [...prev, userMessage]);
     setInputText('');
-    setIsAiLoading(true); // 鎖定狀態：打字思考中
+    setIsAiLoading(true); 
     
-    // 發送後立即使對話列表自動平滑滾動到最底部
     setTimeout(() => {
       flatListRef.current?.scrollToEnd({ animated: true });
     }, 100);
 
+    // 💡 核心修正：打包聊天歷史紀錄，並過濾掉 id: '1' 的初始 AI 招呼語
+    // 這樣歷史紀錄就會乾淨地從 user 開頭，嚴格遵守 Gemini 的交替規範，絕不報 400 錯誤！
+    const historyPayload = messages
+      .filter(m => m.id !== '1')
+      .map(m => ({
+        role: m.sender === 'user' ? 'user' : 'model',
+        text: m.text
+      }));
+
     try {
+      // 🎯 核心修復：把剛剛缺少的 ${BACKEND_IP} 變數完美補回，解決 Unexpected token 語法崩潰！
       const response = await fetch(
         `http://${BACKEND_IP}:5000/api/chat`,
         {
@@ -90,7 +100,8 @@ export default function ChatScreen() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            message: userRawText 
+            message: userRawText,
+            history: historyPayload // 💡 核心注入：讓 S 擁有真正的對話記憶能力！
           })
         }
       );
@@ -100,7 +111,7 @@ export default function ChatScreen() {
         if (response.status === 429) {
           debugHint = `🚨 【偵錯提示】超過免費額度上限！請稍等 1 分鐘後再試。`;
         } else if (response.status === 400) {
-          debugHint = `🚨 【偵錯提示】後端請求異常，可能是 Google 額度限制或金鑰錯誤。`;
+          debugHint = `🚨 【偵錯提示】後端請求異常，可能是 Google 歷史格式限制或金鑰錯誤。`;
         } else if (response.status === 500) {
           debugHint = `🚨 【偵錯提示】後端伺服器內部錯誤（請檢查 backend 終端機報錯）。`;
         }
@@ -174,13 +185,10 @@ export default function ChatScreen() {
       style={styles.backgroundImage}
       resizeMode="cover"
     >
-      {/* 🎯 核心優化：重新校正 KeyboardAvoidingView 參數
-        - 雙平台皆使用 'padding' 行為，讓整體結構在鍵盤彈起時向上推擠
-        - 針對 iOS 與 Android 給予不同的高度補償量 (Offset)，徹底拉開輸入框與鍵盤的距離
-      */}
+      {/* 🎯 鍵盤防擋終極修正方案 */}
       <KeyboardAvoidingView
-        behavior="padding"
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 50 : 15} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 20} // 微調 Offset 確保無論手機平板、輸入框都能在鍵盤上方留出呼吸空間
         style={{ flex: 1 }}
       >
         {/* 主內容容器 */}
@@ -188,11 +196,17 @@ export default function ChatScreen() {
           
           {/* 頂部導覽列 */}
           <View style={styles.header}>
-            <View style={styles.headerLeft}>
-              <TouchableOpacity onPress={() => router.back()} activeOpacity={0.7}>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <TouchableOpacity 
+                onPress={() => router.back()} 
+                activeOpacity={0.7}
+                style={{ paddingRight: 6 }}
+              >
                 <Text style={styles.headerIconText}>〈</Text>
               </TouchableOpacity>
-              <Text style={styles.headerTitle}>{currentDateText}</Text>
+              <Text style={[styles.headerTitle, { textAlign: 'left' }]}>
+                {currentDateText}
+              </Text>
             </View>
             
             <TouchableOpacity 
@@ -204,7 +218,7 @@ export default function ChatScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* 聊天訊息列表：維持 flex: 1，並確保鍵盤彈起時 FlatList 能自動縮小尺寸 */}
+          {/* 聊天訊息列表 */}
           <FlatList
             ref={flatListRef}
             data={messages}
@@ -212,9 +226,9 @@ export default function ChatScreen() {
             keyExtractor={item => item.id}
             style={[styles.chatList, { flex: 1 }]} 
             contentContainerStyle={styles.chatContainer}
-            // 當鍵盤彈起、對話視窗變動時，再度強制滾動到底部，保證隨時看得到最新對話
+            // 🎯 優化：當鍵盤彈起、或內容長度改變時，自動平滑滾動到最底部
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-            
+            onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
             ListFooterComponent={isAiLoading ? (
               <View style={[styles.messageRow, styles.aiRow]}>
                 <View style={styles.avatarCircle}>

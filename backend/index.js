@@ -1,281 +1,204 @@
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config(); // 🎯 啟動並讀取 .env 設定檔
-
-const Replicate = require('replicate');
-
-// 🎯 修正：顯式將 auth token 傳入實例中，徹底解決 401 找不到金鑰的問題
-const replicate = new Replicate({
-  auth: process.env.REPLICATE_API_TOKEN,
-});
+const { GoogleGenAI, Type } = require('@google/genai');
+const fs = require('fs');
+const path = require('path');
+require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// 中介軟體設定
 app.use(cors());
-app.use(express.json()); // 讓後端可以解析前端傳來的 JSON 資料
+app.use(express.json());
 
-// 🎯 這裡新增一個輕量延遲小工具（用來對應 429 被限流時的等待）
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+// 確保存放快取圖片的資料夾存在
+const imagesDir = path.join(__dirname, 'images');
+if (!fs.existsSync(imagesDir)) {
+  fs.mkdirSync(imagesDir);
+}
+// 開放靜態資源路由，讓手機可以透過網址讀取後端本地圖片
+app.use('/images', express.static(imagesDir));
 
-// 測試用的根路由
-app.get('/', (req, res) => {
-  res.send('Lifetoon 後端伺服器安全運行中！');
-});
+// 💡 取得環境變數中的 API Keys
+const GEMINI_KEYS = [
+  process.env.GEMINI_API_KEY, 
+  process.env.GEMINI_API_KEY_2
+].filter(Boolean);
 
-// 🎯 1. 聊天 API 轉接點 (已加入 429 自動重試防禦)
+let currentKeyIndex = 0;
+
+// 原本的輪替金鑰（維持給聊天機器人使用）
+function getNextApiKey() {
+  if (GEMINI_KEYS.length === 0) {
+    console.error("❌ 錯誤：未設定 API Key");
+    return null;
+  }
+  const key = GEMINI_KEYS[currentKeyIndex];
+  currentKeyIndex = (currentKeyIndex + 1) % GEMINI_KEYS.length;
+  return key;
+}
+
+function getGeminiInstance() {
+  const apiKey = getNextApiKey();
+  if (!apiKey) return null;
+  return new GoogleGenAI({ apiKey });
+}
+
+// 🎯 強行鎖定第二組付費 Key 給 Imagen 3 使用，確保額度與權限充足
+function getPaidGeminiInstance() {
+  // 優先拿第二組（付費版），若沒設定則回退第一組
+  const paidKey = GEMINI_KEYS[1] || GEMINI_KEYS[0];
+  if (!paidKey) {
+    console.error("❌ 錯誤：未設定付費版 API Key");
+    return null;
+  }
+  return new GoogleGenAI({ apiKey: paidKey });
+}
+
+// ==========================================
+// 💬 路由 1：聊天機器人 (S)
+// ==========================================
 app.post('/api/chat', async (req, res) => {
+  const { message, history } = req.body;
+  const formattedHistory = (history || [])
+    .filter(h => h.text || h.message || h.content)
+    .map(h => ({
+      role: h.role === 'user' ? 'user' : 'model',
+      parts: [{ text: h.text || h.message || h.content }]
+    }));
+
+  const contents = [...formattedHistory, { role: "user", parts: [{ text: message }] }];
+  const ai = getGeminiInstance();
+  
+  if (!ai) return res.status(500).json({ error: "API Key 未設定" });
+
   try {
-    const { message } = req.body;
-    const apiKey = process.env.GEMINI_API_KEY; 
-
-    const systemInstruction = `
-      你是一位溫暖的日記陪伴者，名字叫『S』。
-      請根據使用者的對話給予簡短、溫馨、富有同理心的回應。
-      
-      【重要任務】：為了稍後能幫使用者畫出專屬漫畫，請在安慰對方的同時，自然地用一個問句引導使用者講出「當下的環境細節」
-      （例如：天氣、時間、地點、手邊在做什麼）。
-      
-      範例：
-      使用者：「我好累，專案還沒做完」
-      你的回應：「天啊辛苦了！抱抱你🥺 你現在還待在圖書館或是電腦桌前嗎？窗外天黑了嗎？」
-
-      字數請嚴格控制在 40-80 字左右，不要使用死板的官方腔調。
-      不重複問已經問過的問題，也不要一次問太多問題，保持對話自然流暢。
-    `;
-
-    let geminiData = null;
-    let retryCount = 0;
-    const maxRetries = 2;
-
-    // 🌟 切入點：使用迴圈包覆 fetch 流程，偵測到 429 立即自動重試
-    while (retryCount <= maxRetries) {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [
-              { 
-                parts: [{ text: `${systemInstruction}\n\n使用者剛剛說了：${message}` }] 
-              }
-            ]
-          })
-        }
-      );
-
-      geminiData = await response.json();
-
-      // 🔍 攔截免費版 429 Quota Exceeded 錯誤
-      if (geminiData.error && geminiData.error.code === 429) {
-        console.warn(`⚠️ 聊天 API 觸發 Gemini 429 限流。等待 2.5 秒後進行第 ${retryCount + 1} 次重試...`);
-        retryCount++;
-        await delay(2500); // 乖乖等待 2.5 秒
-        continue; // 進入下一次迴圈重新 fetch
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: contents,
+      config: {
+        systemInstruction: `你是一位溫暖的青少年陪伴者「S」。請簡短（40-80字）、溫馨地回應，並適時用一個問句引導對方分享生活細節。保持自然，不要官腔。`,
+        temperature: 0.7,
       }
-
-      break; // 如果沒報 429，就直接跳出重試迴圈
-    }
-
-    if (geminiData && geminiData.candidates && geminiData.candidates[0]?.content?.parts?.[0]?.text) {
-      const cleanText = geminiData.candidates[0].content.parts[0].text;
-      res.json({ reply: cleanText }); 
-    } else {
-      console.error("Gemini 原始回應異常:", geminiData);
-      res.status(400).json({ error: "AI 拒絕回應或帳戶額度受限" });
-    }
-
-  } catch (error) {
-    console.error("後端聊天錯誤:", error);
-    res.status(500).json({ error: "伺服器內部錯誤" });
+    });
+    res.json({ reply: response.text });
+  } catch (err) {
+    console.error("聊天錯誤:", err);
+    res.json({ reply: "抱歉，我現在有點累了，但你可以點右上角生成漫畫看看！✨" });
   }
 });
 
-// 🎯 2. 文字生成漫畫圖 API 節點 (已加入 429 自動重試防禦)
+// ==========================================
+// 🎨 路由 2：生成漫畫分鏡 (已全面升級為官方 Imagen 3 模型)
+// ==========================================
 app.post('/api/generate-image', async (req, res) => {
   const { prompt: userDiaryText } = req.body;
-  const apiKey = process.env.GEMINI_API_KEY;
+  
+  // 🎯 提示詞優化：Imagen 3 偏好流暢自然敘述
+  const characterPrompt = "A simple 2D anime girl style illustration. The girl has clear facial features with two perfect eyes, wearing round glasses, light freckles on her face, dark hair tied in a low ponytail. She is wearing a white collared shirt under a v-neck cable knit sweater. She is a teenager. ";
+  const styleSuffix = ", simple 2D manga style, clean black ink outlines, minimalist line art, flat cell shading, pure black and white comic book panel, no 3D rendering, 3:4 aspect ratio";
+  
+  const ai = getGeminiInstance();
+  let finalPanels = [];
 
   try {
-    console.log("🎨 收到原始日記:", userDiaryText);
-
-    // ==========================================
-    // 🌟 第一步：請 Gemini 把日記轉成英文生圖咒語 (加入 429 防禦)
-    // ==========================================
-    let englishPrompt = "a simple comic strip story";
-    let retryCount = 0;
-    const maxRetries = 2;
-
-   const translationInstruction = `
-      你是一個專業的日系漫畫分鏡提示詞專家。
-      請將以下使用者的心情日記，轉換成適合給 Stable Diffusion XL 算圖的「純英文關鍵字(Prompt)」。
-
-      ⚠️ 為了確保 AI 能畫出有分鏡框線的漫畫，請嚴格遵守以下結構：
-      1. 提取日記中 2 到 3 個最關鍵的具體元素（例如：書桌、黑夜、排球、笑臉）。
-      2. 絕對不要使用 "Top panel", "Panel 1" 這種分段或條列式的寫法。
-      3. 所有的英文提示詞必須是「一個連續的字串」，全部用逗號分隔，不要有完整的句子。
-
-      【🌟 固定主角設定】（必須放在最前面）：
-      1girl, solo, young asian female student, soft anime appearance, simple modern casual outfit, consistent hairstyle,
-
-      【範例輸出】（請嚴格模仿這種逗號分隔的格式）：
-      1girl, solo, young asian female student, soft anime appearance, simple modern casual outfit, consistent hairstyle, sitting at desk, typing on keyboard, dark night window, playing volleyball earlier, exhausted but determined
-
-      Diary:
-      ${userDiaryText}
-    `;
-
-    // 🌟 切入點：使用迴圈包覆翻譯 fetch 流程
-    while (retryCount <= maxRetries) {
-      try {
-        console.log(`🪄 正在請 Gemini 翻譯並重塑繪圖咒語... (第 ${retryCount + 1} 次嘗試)`);
-        
-        const geminiResponse = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ parts: [{ text: translationInstruction }] }]
-            })
-          }
-        );
-
-        const geminiData = await geminiResponse.json();
-        
-        // 🔍 攔截免費版 429 Quota Exceeded 錯誤
-        if (geminiData.error && geminiData.error.code === 429) {
-          console.warn(`⚠️ 生圖翻譯觸發 Gemini 429 限流。等待 2.5 秒後進行下一次重試...`);
-          retryCount++;
-          await delay(2500); 
-          continue; 
-        }
-
-        if (geminiData.candidates && geminiData.candidates[0]?.content?.parts?.[0]?.text) {
-          englishPrompt = geminiData.candidates[0].content.parts[0].text.trim();
-          console.log(`✨ Gemini 咒語轉換成功！最終英文 Prompt: ${englishPrompt}`);
-        }
-        break; // 成功拿到或非 429 狀況就退出迴圈
-      } catch (translationError) {
-        console.error("⚠️ 咒語翻譯階段發生錯誤:", translationError.message);
-        retryCount++;
-        if (retryCount > maxRetries) {
-          // 萬一真的重試到極限都失敗，使用安全降級備用詞，確保生圖流程不中斷
-          englishPrompt = `japanese manga illustration, ${userDiaryText}`;
-          break;
-        }
-        await delay(1000);
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: `將此日記轉化為 4-6 格漫畫腳本: ${userDiaryText}`,
+      config: {
+        systemInstruction: `你是一位資深漫畫分鏡師。請根據日記生成 4-6 格漫畫。
+注意：主角是一位戴圓框眼鏡的女孩，體型嬌小，年齡約16歲。
+你的 sdxlPrompt 欄位只需寫出該格分鏡中主角的「動作」、「表情」與「極簡場景描述」(例如: Close up shot, looking nervous at a simple school desk, minimalist classroom background)。請用英文撰寫，保持簡潔，不要有複雜的光影描述，也不要在 sdxlPrompt 裡描述主角的服裝與髮型。`,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            storyboard: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  panelNumber: { type: Type.INTEGER },
+                  description: { type: Type.STRING },
+                  thoughtBubbles: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  sdxlPrompt: { type: Type.STRING, description: "具體畫面與動作描述，英文" }
+                },
+                required: ["panelNumber", "description", "thoughtBubbles", "sdxlPrompt"]
+              }
+            }
+          },
+          required: ["storyboard"] // ✨ 已修正紅線錯誤：移除怪異的中括號
+        },
+        temperature: 0.6,
       }
-    }
+    });
 
-    // ==========================================
-    // 🌟 第二步：融入「黑白日漫」魔法詞，並送交 Replicate (保持原樣)
-    // ==========================================
-   const comicPrompt = `
-      masterpiece, absurdres, ultra detailed, highest quality,
+    const parsed = JSON.parse(response.text);
+    finalPanels = parsed.storyboard || [];
+  } catch (error) {
+    console.error("❌ Gemini 生成分鏡失敗，啟用保底機制:", error);
+    finalPanels = Array.from({ length: 4 }, (_, i) => ({
+      panelNumber: i + 1,
+      description: "生活",
+      thoughtBubbles: ["今天發生了這樣的事..."],
+      sdxlPrompt: "sitting at desk, looking thoughtful"
+    }));
+  }
 
-      // 強制漫畫排版魔法詞
-      professional serialized japanese manga page,
-      comic book page layout, multiple panels, divided panels,
-      4 to 5 clearly separated rectangular comic panels,
-      thick clean black panel borders,
-      consistent panel spacing,
-      balanced manga composition,
+  console.log(`\n🎨 喚醒 Gemini Imagen 3 模型，開始併發產生 ${finalPanels.length} 張專屬漫畫...`);
+  
+  try {
+    // 🎯 核心大招：利用 Promise.all 同時發送請求給 Imagen 3
+    const imageUrls = await Promise.all(
+      finalPanels.map(async (panel, index) => {
+        const cleanPrompt = panel.sdxlPrompt.replace(/\n/g, ' ');
+        const fullPrompt = `${characterPrompt}${cleanPrompt}${styleSuffix}`;
+        
+        const imgAi = getPaidGeminiInstance(); 
+        if (!imgAi) throw new Error("無法取得付費生圖實例");
 
-      // 帶入 Gemini 整理出的日記關鍵字與主角
-      ${englishPrompt},
+        try {
+          const imgResponse = await imgAi.models.generateImages({
+            model: 'imagen-4.0-generate-001', // 💡 官方正式 Imagen 3 核心高畫質模型
+            prompt: fullPrompt,
+            config: {
+              numberOfImages: 1,
+              aspectRatio: '3:4',
+              outputMimeType: 'image/jpeg',
+            }
+          });
 
-      // 畫風與細節
-      beautiful manga face, sharp clean jawline, smooth flat anime facial planes, small simplified manga nose, minimal clean lips, large expressive anime eyes, perfect face symmetry,
-      clean crisp black ink lineart, professional manga pen brush strokes, precise contour lines,
-      high contrast screentone shading, dense japanese manga screentones, dramatic hatch shadows,
-      clean monochrome only, greyscale,
+          // 1. 提取 Gemini 吐回來圖片的 Base64 原始資料
+          const base64Data = imgResponse.generatedImages[0].image.imageBytes;
+          
+          // 2. 將圖片寫入後端本地資料夾中
+          const fileName = `panel-${Date.now()}-${index}.jpg`;
+          const filePath = path.join(imagesDir, fileName);
+          fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
+          
+          // 3. 自動組成當前區域網路連線 IP 的標準 HTTP 網址
+          const localUrl = `http://${req.headers.host}/images/${fileName}`;
+          console.log(`[Imagen 3 圖片 ${index + 1} 生成成功]: ${localUrl}`);
+          return localUrl;
 
-      sharp detailed background, clear room interior perspective,
-      cinematic emotional storytelling, slice of life japanese manga atmosphere,
-
-      no blur, no sketchiness, no unfinished lines
-      `;
-
-    const negativePrompt = `
-      blurry,
-      soft focus,
-      lowres,
-      bad face,
-      deformed face,
-      messy anatomy,
-      rough sketch,
-      unfinished drawing,
-      duplicate character,
-      multiple heads,
-      poor lineart,
-      washed out shading,
-      empty background,
-      low detail room,
-      abstract composition,
-      watermark,
-      logo,
-      text,
-      color,
-      photorealistic,
-      3d render
-      `;
-
-    console.log("🚀 正在呼叫 Replicate SDXL 產生黑白條漫...");
-    
-    const output = await replicate.run(
-      "jamesliuzx/manga:f0bdba9facf64f87b4beac6757180b3a5f8f9751c1cd6c03f22d289fe2ed2cf4", 
-      {
-        input: {
-          prompt: comicPrompt,
-          negative_prompt: negativePrompt,
-          width: 768,
-          height: 1024,     
-          num_outputs: 1,    
-          // scheduler: "Euler a",
-          // guidance_scale: 7.0,
-          // num_inference_steps: 28
+        } catch (imgErr) {
+          console.error(`❌ 第 ${index + 1} 格 Imagen 生圖失敗，啟用安全降級保底:`, imgErr);
+          // 備援方案：避免會場網路卡頓或敏感詞阻斷，自動呼叫 Pollinations 補圖，確保 APP 絕不閃退
+          return `https://image.pollinations.ai/p/${encodeURIComponent(fullPrompt)}?width=768&height=1024&nologo=true&seed=${Date.now() + index}`;
         }
-      }
+      })
     );
 
-  // ==========================================
-  // 🌟 第三步：解析 Replicate 回傳 (保持原樣，僅修正最後關卡)
-  // ==========================================
-  // ==========================================
-  // 解析 Replicate 回傳
-  // ==========================================
+    // 完美回傳給前端
+    res.json({ 
+      imageUrls: imageUrls, 
+      storyboard: finalPanels 
+    });
 
-  if (!output) {
-    throw new Error("Replicate 沒有回傳任何內容");
-  }
-
-  let finalImageUrl;
-
-  // Replicate 通常回傳陣列
-  if (Array.isArray(output)) {
-    finalImageUrl = output[0].toString();
-  }
-  // 單一 URL object
-  else {
-    finalImageUrl = output.toString();
-  }
-
-  console.log("🎉 最終圖片網址:", finalImageUrl);
-
-  res.json({
-    imageUrl: finalImageUrl
-  });
-
-  } catch (error) {
-    console.error("🚨 生圖流程最終發生錯誤:", error);
-    res.status(500).json({ error: "圖片生成失敗", details: error.message });
+  } catch (flowError) {
+    console.error("❌ 生圖流程重大核心阻斷:", flowError);
+    res.status(500).json({ error: "生圖核心崩潰，請檢查後端日誌" });
   }
 });
 
-// 啟動伺服器
-app.listen(PORT, () => {
-  console.log(`🚀 伺服器已在 http://localhost:${PORT} 順利啟動`);
-});
+app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Lifetoon 後端已啟動於 Port ${PORT}`));
