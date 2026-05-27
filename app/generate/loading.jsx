@@ -8,7 +8,7 @@ export default function LoadingScreen() {
   const router = useRouter();
   const { prompt } = useLocalSearchParams(); 
 
-  const BACKEND_IP = "10.48.163.119";
+  const BACKEND_URL = "https://lifetoon-backend.onrender.com";
   
   const hasFetched = useRef(false);
 
@@ -48,7 +48,7 @@ export default function LoadingScreen() {
         console.log("🚀 開始向後端請求生圖，提示詞為:", prompt);
         const finalPrompt = prompt || "兩隻可愛的小兔子在星空下看書";
 
-        const response = await fetch(`http://${BACKEND_IP}:5000/api/generate-image`, {
+        const response = await fetch(`${BACKEND_URL}/api/generate-image`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

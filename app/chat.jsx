@@ -41,7 +41,7 @@ export default function ChatScreen() {
   
   // 🎯 【Demo 命門提醒】：後天去到評審展示會場，如果連了會場的 Wi-Fi，
   // 請務必把這裡的 IP 改成妳筆電當下分到的最新 IPv4 位址！
-  const BACKEND_IP = "10.48.163.119";
+const BACKEND_URL = "https://lifetoon-backend.onrender.com";
 
   // 預設的初始對話紀錄
   const [messages, setMessages] = useState([
@@ -147,7 +147,7 @@ export default function ChatScreen() {
 
     try {
       const response = await fetch(
-        `http://${BACKEND_IP}:5000/api/chat`,
+        `${BACKEND_URL}/api/chat`,
         {
           method: 'POST',
           headers: {
