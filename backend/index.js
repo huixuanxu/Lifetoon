@@ -83,8 +83,8 @@ app.post('/api/chat', async (req, res) => {
 app.post('/api/generate-image', async (req, res) => {
   const { prompt: userDiaryText } = req.body;
   
-  const characterPrompt = "A simple 2D anime girl style illustration. The girl has clear facial features, round glasses, light freckles, dark hair in a low ponytail. She is wearing a white collared shirt under a v-neck cable knit sweater. ";
-  const styleSuffix = ", simple 2D manga style, clean black ink outlines, minimalist line art, pure black and white comic book panel, high contrast, 3:4 aspect ratio";
+  const characterPrompt = "In hardcore retro Japanese manga style, pure black and white heavy ink lineart. A 2D anime girl with clear facial features, round glasses, light freckles, dark hair in a low ponytail. She is wearing a white collared shirt under a v-neck cable knit sweater. ";
+  const styleSuffix = ", vintage b&w comic book panel, intense contrast, deep shadows, grayscale screentone shading textures, professional serialized manga style, 3:4 aspect ratio";
   
   const ai = getGeminiInstance();
   let finalPanels = [];
