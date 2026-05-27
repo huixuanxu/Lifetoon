@@ -1,13 +1,17 @@
+/* global __dirname, Buffer */
 const express = require('express');
 const cors = require('cors');
 const { GoogleGenAI, Type } = require('@google/genai');
 const fs = require('fs');
 const path = require('path');
+const multer = require('multer');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+const upload = multer({ storage: multer.memoryStorage() }); // 將上傳的照片暫存於記憶體（留作未來擴充使用）
 
+// 中介軟體設定
 app.use(cors());
 app.use(express.json());
 
@@ -44,7 +48,7 @@ function getGeminiInstance() {
   return new GoogleGenAI({ apiKey });
 }
 
-// 🎯 強行鎖定第二組付費 Key 給 Imagen 3 使用，確保額度與權限充足
+// 🎯 強行鎖定第二組付費 Key 給 Imagen 使用，確保額度與權限充足
 function getPaidGeminiInstance() {
   // 優先拿第二組（付費版），若沒設定則回退第一組
   const paidKey = GEMINI_KEYS[1] || GEMINI_KEYS[0];
@@ -55,11 +59,18 @@ function getPaidGeminiInstance() {
   return new GoogleGenAI({ apiKey: paidKey });
 }
 
+// 測試用的根路由，方便瀏覽器檢查後端狀態
+app.get('/', (req, res) => {
+  res.send('🚀 Lifetoon 後端伺服器安全運行中！');
+});
+
 // ==========================================
 // 💬 路由 1：聊天機器人 (S)
 // ==========================================
 app.post('/api/chat', async (req, res) => {
   const { message, history } = req.body;
+  
+  // 💡 格式化歷史紀錄，完美契合新版 @google/genai SDK 規範
   const formattedHistory = (history || [])
     .filter(h => h.text || h.message || h.content)
     .map(h => ({
@@ -89,12 +100,12 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // ==========================================
-// 🎨 路由 2：生成漫畫分鏡 (已全面升級為官方 Imagen 3 模型)
+// 🎨 路由 2：生成漫畫分鏡 (已全面升級為官方 Imagen 模型)
 // ==========================================
 app.post('/api/generate-image', async (req, res) => {
   const { prompt: userDiaryText } = req.body;
   
-  // 🎯 提示詞優化：Imagen 3 偏好流暢自然敘述
+  // 🎯 提示詞優化：Imagen 偏好流暢自然敘述
   const characterPrompt = "A simple 2D anime girl style illustration. The girl has clear facial features with two perfect eyes, wearing round glasses, light freckles on her face, dark hair tied in a low ponytail. She is wearing a white collared shirt under a v-neck cable knit sweater. She is a teenager. ";
   const styleSuffix = ", simple 2D manga style, clean black ink outlines, minimalist line art, flat cell shading, pure black and white comic book panel, no 3D rendering, 3:4 aspect ratio";
   
@@ -127,7 +138,7 @@ app.post('/api/generate-image', async (req, res) => {
               }
             }
           },
-          required: ["storyboard"] // ✨ 已修正紅線錯誤：移除怪異的中括號
+          required: ["storyboard"]
         },
         temperature: 0.6,
       }
@@ -145,10 +156,10 @@ app.post('/api/generate-image', async (req, res) => {
     }));
   }
 
-  console.log(`\n🎨 喚醒 Gemini Imagen 3 模型，開始併發產生 ${finalPanels.length} 張專屬漫畫...`);
+  console.log(`\n🎨 喚醒 Gemini Imagen 模型，開始併發產生 ${finalPanels.length} 張專屬漫畫...`);
   
   try {
-    // 🎯 核心大招：利用 Promise.all 同時發送請求給 Imagen 3
+    // 🎯 核心大招：利用 Promise.all 同時發送請求給 Imagen 模型加速生成
     const imageUrls = await Promise.all(
       finalPanels.map(async (panel, index) => {
         const cleanPrompt = panel.sdxlPrompt.replace(/\n/g, ' ');
@@ -159,7 +170,7 @@ app.post('/api/generate-image', async (req, res) => {
 
         try {
           const imgResponse = await imgAi.models.generateImages({
-            model: 'imagen-4.0-generate-001', // 💡 官方正式 Imagen 3 核心高畫質模型
+            model: 'imagen-3.0-generate-002', // 💡 升級為官方高畫質正式生圖模型
             prompt: fullPrompt,
             config: {
               numberOfImages: 1,
@@ -178,7 +189,7 @@ app.post('/api/generate-image', async (req, res) => {
           
           // 3. 自動組成當前區域網路連線 IP 的標準 HTTP 網址
           const localUrl = `http://${req.headers.host}/images/${fileName}`;
-          console.log(`[Imagen 3 圖片 ${index + 1} 生成成功]: ${localUrl}`);
+          console.log(`[Imagen 圖片 ${index + 1} 生成成功]: ${localUrl}`);
           return localUrl;
 
         } catch (imgErr) {
@@ -201,4 +212,5 @@ app.post('/api/generate-image', async (req, res) => {
   }
 });
 
+// 啟動伺服器，綁定 0.0.0.0 確保局域網內的手機 Expo 順利連線
 app.listen(PORT, '0.0.0.0', () => console.log(`🚀 Lifetoon 後端已啟動於 Port ${PORT}`));

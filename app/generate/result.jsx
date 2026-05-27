@@ -18,21 +18,34 @@ export default function ResultScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const isTablet = windowWidth >= 600;
 
-  // 1. 參數解析
+  // 1. 參數解析與安全解碼
   const rawUrls = params.imageUrls || '';
   const rawStoryboard = params.storyboard || '';
+  const rawFruit = params.fruit || ''; // 🎯 完美捕獲從前一頁傳過來的果實資料
 
+  // 2. 解析並自動修復 Pollinations 網址重疊的 Bug
   const validUrls = useMemo(() => {
     if (!rawUrls) return [];
     try {
       const decodedRaw = decodeURIComponent(rawUrls);
       const parsed = JSON.parse(decodedRaw);
-      return Array.isArray(parsed) ? parsed : [];
+      if (!Array.isArray(parsed)) return [];
+
+      // 🛡️ 防呆機制：如果網址不小心疊加了兩次 Pollinations 開頭，自動將其還原為乾淨網址
+      return parsed.map(url => {
+        if (typeof url === 'string' && url.includes('image.pollinations.ai/p/')) {
+          const parts = url.split('image.pollinations.ai/p/');
+          const purePrompt = parts[parts.length - 1].replace(/^\/+/, '');
+          return `https://image.pollinations.ai/p/${purePrompt}`;
+        }
+        return url;
+      });
     } catch (e) {
       return [];
     }
   }, [rawUrls]);
 
+  // 3. 解析分鏡腳本
   const aiStoryboard = useMemo(() => {
     if (!rawStoryboard) return null;
     try {
@@ -40,6 +53,15 @@ export default function ResultScreen() {
     } catch (e) { return null; }
   }, [rawStoryboard]);
 
+  // 4. 解析果實資料 (來自 monster_fruit 分支的靈魂結晶)
+  const generatedFruit = useMemo(() => {
+    if (!rawFruit) return null;
+    try {
+      return JSON.parse(decodeURIComponent(rawFruit));
+    } catch (e) { return null; }
+  }, [rawFruit]);
+
+  // 5. 對白對齊處理
   const displayDialogues = useMemo(() => {
     if (aiStoryboard && aiStoryboard.length > 0) {
       return aiStoryboard.map(panel => 
@@ -64,10 +86,34 @@ export default function ResultScreen() {
           <ScrollView 
             style={[styles.comicScrollView, dynamicContentStyles]}
             contentContainerStyle={styles.comicContentContainer}
+            showsVerticalScrollIndicator={false}
           >
+            
+            {/* 🔮 核心整合：如果前一頁有生成果實，在這個黃金位置華麗登場！ */}
+            {generatedFruit && (
+              <View style={styles.fruitCard}>
+                <Text style={styles.fruitTitle}>🔮 故事凝結成了稀有果實！</Text>
+                <Image source={{ uri: generatedFruit.icon_url }} style={styles.fruitIcon} />
+                <Text style={styles.fruitName}>{generatedFruit.name}</Text>
+                <Text style={styles.fruitMeta}>屬性：【{generatedFruit.element}】 | EXP +{generatedFruit.bonus_exp}</Text>
+                
+                <Text style={styles.fruitEffect}>
+                  「 {generatedFruit.effect_text || '蘊含著今日故事的神祕力量。'} 」
+                </Text>
+                
+                <TouchableOpacity 
+                  onPress={() => alert(`餵食成功！怪獸高興地吃下了${generatedFruit.name}，增加了 ${generatedFruit.bonus_exp} 點經驗值！`)} 
+                  style={styles.feedButton}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.feedButtonText}>🍖 立刻餵給我的怪獸吃</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* 📖 連環漫畫展示區 */}
             {validUrls.map((url, index) => (
               <View key={`panel-${index}`} style={styles.singlePanelFrame}>
-                {/* 這裡的 url 由於已經被 Loading 頁面 prefetch，會直接光速從快取讀取出來 */}
                 <Image source={{ uri: url }} style={styles.comicImage} resizeMode="cover" />
                 
                 <View style={[
@@ -91,6 +137,7 @@ export default function ResultScreen() {
           </View>
         )}
 
+        {/* 底部導覽按鈕 */}
         <View style={[styles.buttonRow, dynamicContentStyles]}>
           <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={() => router.replace('/chat')}>
             <Text style={styles.secondaryButtonText}>再聊一會兒</Text>
@@ -201,6 +248,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     width: '100%',
     justifyContent: 'space-between',
+    marginTop: 10,
   },
   button: {
     flex: 0.47,
@@ -225,5 +273,66 @@ const styles = StyleSheet.create({
   secondaryButtonText: {
     color: '#000',
     fontWeight: 'bold',
+  },
+  /* 🎯 補足怪獸果實卡片的精緻樣式 */
+  fruitCard: {
+    backgroundColor: '#FFF3E0',
+    padding: 16,
+    borderRadius: 18,
+    borderWidth: 2,
+    borderColor: '#FFB74D',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  fruitTitle: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#E65100',
+    marginBottom: 4,
+  },
+  fruitIcon: {
+    width: 75,
+    height: 75,
+    marginVertical: 8,
+  },
+  fruitName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#111',
+  },
+  fruitMeta: {
+    fontSize: 13,
+    color: '#666',
+    marginTop: 2,
+  },
+  fruitEffect: {
+    fontSize: 13,
+    fontStyle: 'italic',
+    color: '#555',
+    marginTop: 10,
+    backgroundColor: '#FFF',
+    padding: 10,
+    borderRadius: 8,
+    textAlign: 'center',
+    width: '100%',
+    lineHeight: 18,
+  },
+  feedButton: {
+    backgroundColor: '#E67E22',
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginTop: 12,
+  },
+  feedButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    fontSize: 13,
   },
 });

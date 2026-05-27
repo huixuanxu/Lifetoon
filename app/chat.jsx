@@ -12,8 +12,9 @@ import {
   Alert
 } from 'react-native';
 import { useRouter } from 'expo-router';
+
 // 引入與結構完全分開管理的自訂樣式
-import { styles } from '../styles/chat.styles'; 
+import { styles } from '../styles/chat.styles';
 
 export default function ChatScreen() {
   const router = useRouter();
@@ -91,7 +92,6 @@ export default function ChatScreen() {
       }));
 
     try {
-      // 🎯 核心修復：把剛剛缺少的 ${BACKEND_IP} 變數完美補回，解決 Unexpected token 語法崩潰！
       const response = await fetch(
         `http://${BACKEND_IP}:5000/api/chat`,
         {
@@ -185,13 +185,11 @@ export default function ChatScreen() {
       style={styles.backgroundImage}
       resizeMode="cover"
     >
-      {/* 🎯 鍵盤防擋終極修正方案 */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 20} // 微調 Offset 確保無論手機平板、輸入框都能在鍵盤上方留出呼吸空間
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 20} 
         style={{ flex: 1 }}
       >
-        {/* 主內容容器 */}
         <View style={[styles.container, { flex: 1 }]}>
           
           {/* 頂部導覽列 */}
@@ -226,7 +224,6 @@ export default function ChatScreen() {
             keyExtractor={item => item.id}
             style={[styles.chatList, { flex: 1 }]} 
             contentContainerStyle={styles.chatContainer}
-            // 🎯 優化：當鍵盤彈起、或內容長度改變時，自動平滑滾動到最底部
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
             onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
             ListFooterComponent={isAiLoading ? (
