@@ -252,42 +252,56 @@ export default function ChatScreen() {
         <View style={[styles.container, { flex: 1 }]}>
           
           {/* 頂部導覽列：新增生成果實按鈕 */}
-          <View style={styles.header}>
-            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-              <TouchableOpacity 
-                onPress={() => router.back()} 
-                activeOpacity={0.7}
-                style={{ paddingRight: 6 }}
-              >
-                <Text style={styles.headerIconText}>〈</Text>
-              </TouchableOpacity>
-              <Text style={[styles.headerTitle, { fontSize: 15, textAlign: 'left' }]}>
-                {currentDateText}
-              </Text>
-            </View>
-            
-            {/* 右側按鈕群組：漫畫與果實並排 */}
-            <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-              
-              {/* 🎯 新加入：生成果實按鈕 */}
-              <TouchableOpacity 
-                onPress={handleGenerateFruit} 
-                activeOpacity={0.8}
-                style={[styles.genButtonContainer, { backgroundColor: '#FF8844', borderColor: '#111' }]} // 💡 給果實按鈕一個亮眼的橘色
-              >
-                <Text style={styles.genButtonText}>生成果實</Text>
-              </TouchableOpacity>
+      <View style={[styles.header, { paddingHorizontal: 8 }]}>
+  
+      {/* 左側標題：設定 flexShrink: 1，讓空間不足時優先壓縮標題，而不是壓縮按鈕 */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', flexShrink: 1 }}>
+        <TouchableOpacity 
+          onPress={() => router.back()} 
+          activeOpacity={0.7}
+          style={{ paddingRight: 6 }}
+        >
+          <Text style={styles.headerIconText}>〈</Text>
+        </TouchableOpacity>
+        <Text style={[styles.headerTitle, { fontSize: 14, textAlign: 'left' }]} numberOfLines={1}>
+          {currentDateText}
+        </Text>
+      </View>
+  
+  {/* 右側按鈕群組：設定 flexShrink: 0，強制按鈕不許縮小 */}
+  <View style={{ flexDirection: 'row', gap: 5, alignItems: 'center', flexShrink: 0 }}>
+    
+    <TouchableOpacity 
+      onPress={handleGenerateFruit} 
+      activeOpacity={0.8}
+      style={[
+        styles.genButtonContainer, 
+        { 
+          backgroundColor: '#FF8844', 
+          borderColor: '#111', 
+          paddingHorizontal: 10, 
+          paddingVertical: 6 
+        }
+      ]}
+    >
+      <Text style={[styles.genButtonText, { fontSize: 13 }]}>生成果實</Text>
+    </TouchableOpacity>
 
-              {/* 原本的生成漫畫按鈕 */}
-              <TouchableOpacity 
-                onPress={handleGenerateImage} 
-                activeOpacity={0.8}
-                style={styles.genButtonContainer} 
-              >
-                <Text style={styles.genButtonText}>生成漫畫</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
+    <TouchableOpacity 
+      onPress={handleGenerateImage} 
+      activeOpacity={0.8}
+      style={[
+        styles.genButtonContainer, 
+        { 
+          paddingHorizontal: 10, 
+          paddingVertical: 6 
+        }
+      ]} 
+    >
+      <Text style={[styles.genButtonText, { fontSize: 13 }]}>生成漫畫</Text>
+    </TouchableOpacity>
+  </View>
+</View>
 
           {/* 聊天訊息列表：維持 flex: 1，並確保鍵盤彈起時 FlatList 能自動縮小尺寸 */}
           <FlatList
