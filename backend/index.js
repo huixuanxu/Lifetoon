@@ -99,7 +99,8 @@ app.post('/api/generate-image', async (req, res) => {
 必須遵循：
 1. 每一格必須使用不同的「鏡頭角度」(如：Close-up, Wide shot, Bird's eye view, Side view)。
 2. 主角戴圓框眼鏡、短馬尾、針織背心。
-3. sdxlPrompt 欄位只需描述該格的「動作、表情、獨特鏡頭角度、極簡場景」。保持簡潔英文。`,
+3. sdxlPrompt 欄位只需描述該格的「動作、表情、獨特鏡頭角度、極簡場景」。保持簡潔英文。
+4. thoughtBubbles 欄位請根據日記情境，寫出該格主角內心的心之聲或對話（請使用溫馨的繁體中文，簡短 10-20 字）。`,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -111,9 +112,10 @@ app.post('/api/generate-image', async (req, res) => {
                 properties: {
                   panelNumber: { type: Type.INTEGER },
                   description: { type: Type.STRING },
-                  sdxlPrompt: { type: Type.STRING }
+                  sdxlPrompt: { type: Type.STRING },
+                  thoughtBubbles: { type: Type.STRING } // 🎯 補上這個！
                 },
-                required: ["panelNumber", "description", "sdxlPrompt"]
+                required: ["panelNumber", "description", "sdxlPrompt", "thoughtBubbles"]
               }
             }
           },
