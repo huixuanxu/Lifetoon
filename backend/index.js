@@ -158,6 +158,8 @@ app.post('/api/generate-image', async (req, res) => {
       await sleep(3000); 
 
     } catch (imgErr) {
+      console.error(`❌ 第 ${i+1} 格 Google 官方生圖失敗，詳細報錯原因為：`, imgErr);
+
       console.error(`第 ${i+1} 格生圖失敗，降級使用 Pollinations`);
       imageUrls.push(`https://image.pollinations.ai/p/${encodeURIComponent(fullPrompt)}?width=768&height=1024&nologo=true&seed=${Date.now() + i}`);
     }
