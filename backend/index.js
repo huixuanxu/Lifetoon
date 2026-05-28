@@ -142,7 +142,7 @@ app.post('/api/generate-image', async (req, res) => {
     try {
       console.log(`正在生成第 ${i+1} 張圖...`);
       const imgResponse = await imgAi.models.generateImages({
-        model: 'imagen-3.0-generate-002',
+        model: 'imagen-4.0-generate-001',
         prompt: fullPrompt,
         config: { numberOfImages: 1, aspectRatio: '3:4' }
       });
